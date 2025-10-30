@@ -57,8 +57,9 @@ def main() -> None:
     if not langs:
         raise SystemExit("No target languages provided")
 
-    # Prepare engines
+    # Prepare engines and derive output labeling/paths
     translate_fn_factory = None
+    engine_label = "gemini" if args.engine == "gemini" else "translateLLM"
     if args.engine == "gemini":
         gem = GeminiTranslator()
 
@@ -74,8 +75,8 @@ def main() -> None:
 
         translate_fn_factory = translate_fn
 
-    # Local output directory
-    local_out_dir = Path("translated_outputs")
+    # Local output directory (engine-specific)
+    local_out_dir = Path(f"translated_outputs_{engine_label}")
     local_out_dir.mkdir(parents=True, exist_ok=True)
 
     # GCS bucket and prefix
@@ -93,7 +94,8 @@ def main() -> None:
 
     for lang in langs:
         tree, count = translate_ttml(input_path, translate_fn_factory, lang)
-        out_name = f"{in_stem}_{lang}.ttml"
+        # Include engine label in the filename for traceability
+        out_name = f"{in_stem}_{lang}_{engine_label}.ttml"
         out_path = local_out_dir / out_name
         write_ttml(tree, str(out_path))
         results.append(str(out_path))

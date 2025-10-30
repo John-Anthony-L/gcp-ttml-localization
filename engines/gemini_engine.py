@@ -43,25 +43,33 @@ class GeminiTranslator:
         if not lines:
             return []
 
-        # Prompt ensures one-to-one mapping and natural phrasing with light context.
+        # Prompt ensures one-to-one mapping, natural phrasing, and minimal expansion for reading speed.
         rules = (
             "You are a professional subtitle translator. Translate each input line to "
             f"{target_language} using the most natural phrasing for TV/film dialogue.\n\n"
-            "Return ONLY a JSON array of strings, the same length and order as input.\n"
+            "Return ONLY a JSON array of strings, exactly the same length and order as the input array.\n"
             "Do not add or remove lines, do not merge or split.\n"
-            "Preserve speaker intent, tone, and register. Keep punctuation natural."
+            "Preserve speaker intent, tone, and register. Keep punctuation natural.\n"
+            "Keep length close to source for reading speed (aim within ±15% characters per line when possible)."
         )
 
+        response_schema = {
+            "type": "array",
+            "items": {"type": "string"},
+        }
+
         gen_cfg = GenerationConfig(
-            temperature=0.3,
+            temperature=0.25,
             top_p=0.4,
             max_output_tokens=8192,
             response_mime_type="application/json",
+            response_schema=response_schema,
         )
 
         # Small batches to avoid long prompts and ensure alignment
         out: List[str] = []
-        batch_size = 40
+        # Larger batch size to reduce API calls and preserve context across adjacent lines
+        batch_size = 200
         for i in range(0, len(lines), batch_size):
             chunk = lines[i : i + batch_size]
             resp = self.model.generate_content(
