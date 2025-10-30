@@ -1,0 +1,17 @@
+# Ignore .ttml files
+*.ttml
+
+# Ignore .log files
+*.log
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyc
+
+# Ignore virtual environment directories
+.venv/
+
+# Ignore .env files
+.env
