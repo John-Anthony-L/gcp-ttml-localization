@@ -15,3 +15,9 @@ __pycache__/
 
 # Ignore .env files
 .env
+
+# Ignore input file
+English-Non-English\ OV\ Templates/
+
+# Ignore .DS_Store files (macOS)
+.DS_Store
