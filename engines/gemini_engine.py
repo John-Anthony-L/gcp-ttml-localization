@@ -43,6 +43,9 @@ class GeminiTranslator:
         if not lines:
             return []
 
+        # Single-call, whole-script translation for maximum context preservation.
+        # Uses divide-and-conquer fallback if the response shape is invalid or request is too large.
+
         # Prompt ensures one-to-one mapping, natural phrasing, and minimal expansion for reading speed.
         rules = (
             "You are a professional subtitle translator. Translate each input line to "
@@ -66,30 +69,32 @@ class GeminiTranslator:
             response_schema=response_schema,
         )
 
-        # Small batches to avoid long prompts and ensure alignment
-        out: List[str] = []
-        # Larger batch size to reduce API calls and preserve context across adjacent lines
-        batch_size = 200
-        for i in range(0, len(lines), batch_size):
-            chunk = lines[i : i + batch_size]
-            resp = self.model.generate_content(
-                [rules, json.dumps(chunk, ensure_ascii=False)],
-                generation_config=gen_cfg,
-                safety_settings=self.safety,
-                stream=False,
-            )
-            text = resp.text or "[]"
+        def translate_chunk(chunk: List[str]) -> List[str]:
+            # Try one request for this chunk.
             try:
+                resp = self.model.generate_content(
+                    [rules, json.dumps(chunk, ensure_ascii=False)],
+                    generation_config=gen_cfg,
+                    safety_settings=self.safety,
+                    stream=False,
+                )
+                text = resp.text or "[]"
                 arr = json.loads(text)
-                if not isinstance(arr, list) or len(arr) != len(chunk):
-                    # Fallback: per-line translation if the model drifted
-                    out.extend(self._fallback_per_line(chunk, target_language))
-                else:
-                    out.extend([str(x) if x is not None else "" for x in arr])
+                if isinstance(arr, list) and len(arr) == len(chunk):
+                    return [str(x) if x is not None else "" for x in arr]
             except Exception:
-                out.extend(self._fallback_per_line(chunk, target_language))
+                pass
 
-        return out
+            # If we reach here, try to split the chunk to reduce size or recover from drift.
+            if len(chunk) == 1:
+                # Last resort, per-line fallback
+                return self._fallback_per_line(chunk, target_language)
+            mid = len(chunk) // 2
+            left = translate_chunk(chunk[:mid])
+            right = translate_chunk(chunk[mid:])
+            return left + right
+
+        return translate_chunk(lines)
 
     def _fallback_per_line(self, lines: List[str], target_language: str) -> List[str]:
         gen_cfg = GenerationConfig(
